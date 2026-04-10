@@ -1,0 +1,18 @@
+---
+description: Unit and Integration testing standards
+globs: **/*.test.ts, **/*.test.tsx, **/*.spec.ts, **/*.spec.tsx
+---
+# Testing Standards
+
+You are writing or modifying test files. 
+
+### 1. Framework & Pattern
+* Structure all tests using the **Arrange, Act, Assert (AAA)** pattern. Visually separate these sections with blank lines.
+* Use descriptive `describe` and `it` blocks. Explain *what* is being tested and the *expected outcome* (e.g., `it('should return 401 if token is missing')`).
+
+### 2. Mocking Constraints
+* **Frontend:** ALWAYS mock Axios calls. Never let a test attempt to hit a real network endpoint. Use standard Jest/Vitest mocking utilities.
+* **Backend:** Mock Mongoose models for unit tests. Do not require a live MongoDB connection unless explicitly instructed to write an Integration Test.
+
+### 3. Assertions
+* Avoid using generic `.toBeTruthy()`. Use exact matchers like `.toEqual()` or `.toBe()` for strict type checking.

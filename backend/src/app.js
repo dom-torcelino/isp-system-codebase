@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import * as Sentry from '@sentry/node';
 
 // Route Imports
 import authRoutes from './routes/auth.routes.js';
@@ -8,9 +10,20 @@ import { errorHandler } from './middlewares/errorHandler.middleware.js';
 
 const app = express();
 
+// Why: Initialize Sentry early so it can instrument Express and capture errors across all middleware/routes.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+  });
+}
+
 // Why: Trust the first proxy in front of Express. This ensures req.ip represents the real client.
 // CRITICAL: Only enable this if your backend is actually deployed behind a proxy (e.g., Heroku, AWS, Nginx).
 app.set('trust proxy', 1);
+
+// Why: Helmet sets security-related HTTP headers (X-Content-Type-Options, Strict-Transport-Security, etc.).
+app.use(helmet());
 
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',

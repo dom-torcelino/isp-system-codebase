@@ -1,0 +1,23 @@
+---
+description: Standards for generating git commit messages or PR descriptions
+globs: *
+---
+# Version Control Standards
+
+When asked to generate a commit message or summarize changes, you MUST use the Conventional Commits format.
+
+### 1. Format
+`<type>(<optional scope>): <description>`
+
+### 2. Allowed Types
+* `feat`: A new feature (Frontend UI or Backend route).
+* `fix`: A bug fix.
+* `refactor`: A code change that neither fixes a bug nor adds a feature.
+* `chore`: Updating build tasks, package manager configs, etc.
+* `style`: Formatting, missing semi-colons, MUI style tweaks.
+
+### 3. Constraints
+* Keep the description line under 50 characters.
+* Do not use uppercase letters at the start of the description.
+* Do not end the description with a period.
+* If a longer explanation is needed, add a blank line after the description and write a bulleted list of the exact technical changes.

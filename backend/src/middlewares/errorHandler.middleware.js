@@ -1,6 +1,6 @@
 export const errorHandler = (err, req, res, next) => {
-  // Why: Default to 500 if the error didn't originate from an explicit res.status() call.
-  let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  // Why: Use the error's own statusCode (e.g., from ApiError) if available, otherwise fall back to the response status.
+  let statusCode = err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode);
   let message = err.message;
 
   // Why: Catch MongoDB bad ObjectIDs. If a user tries to GET /api/users/123, Mongoose throws a CastError.

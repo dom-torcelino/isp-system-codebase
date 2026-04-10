@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const VALID_ROLES = ['SuperAdmin', 'SystemAdmin', 'Support', 'Technician'];
+const VALID_ROLES = ['SuperAdmin', 'SystemAdmin', 'CustomerSupport', 'Technician'];
 const BCRYPT_SALT_ROUNDS = 12;
 
 const userSchema = new mongoose.Schema({

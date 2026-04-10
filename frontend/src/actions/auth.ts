@@ -49,7 +49,7 @@ export async function loginAction(
 export async function logoutAction() {
   // Why: Delete the specific HttpOnly cookie by instructing the browser to expire it immediately.
   cookies().delete({
-    name: 'session_token',
+    name: 'jwt_token',
     path: '/', // Why: Must match the path used when the cookie was initially set.
   });
 

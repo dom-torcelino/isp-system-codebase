@@ -1,0 +1,224 @@
+---
+description: Frontend coding standards for the ISP Management Dashboard — Next.js 14 App Router with shadcn/ui, Tailwind CSS, and server-first architecture.
+globs: frontend/**/*
+---
+
+# Frontend Architecture Rules
+
+> These rules are extracted from the existing codebase. Follow them strictly to maintain architectural consistency.
+
+---
+
+## 1. Framework & Runtime
+
+- **Next.js 14 App Router** is the framework. Never use Pages Router patterns (`getServerSideProps`, `getStaticProps`, `_app.tsx`, `_document.tsx`).
+- Prefer **Server Components** by default. Only add `"use client"` when the component needs browser APIs, event handlers, hooks, or state.
+- Use **Route Groups** `(auth)`, `(dashboard)` to organize layouts without affecting URLs.
+
+---
+
+## 2. Component Declaration & Exports
+
+- Declare components as **named function declarations**, not arrow-function constants:
+  ```tsx
+  // ✅ Correct
+  export function MyComponent({ title }: MyComponentProps) { ... }
+
+  // ❌ Wrong
+  const MyComponent: React.FC<MyComponentProps> = ({ title }) => { ... }
+  export default MyComponent;
+  ```
+- Use **named exports**. Avoid `export default` on components.
+- One primary component per file. File name must match the exported component name in PascalCase.
+
+---
+
+## 3. Props & Types
+
+- Define props with an **`interface`** named `<ComponentName>Props`, placed directly above the component:
+  ```tsx
+  interface KPICardProps {
+    title: string;
+    value: string;
+    trend: "up" | "down" | "neutral";
+  }
+
+  export function KPICard({ title, value, trend }: KPICardProps) { ... }
+  ```
+- Use **string literal unions** for enum-like values (statuses, roles, priorities), not TypeScript `enum`:
+  ```tsx
+  // ✅ Correct
+  type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
+
+  // ❌ Wrong
+  enum TicketStatus { Open, InProgress, Resolved, Closed }
+  ```
+- Place shared/domain types in `src/types/`. Keep component-local types in the component file.
+- Do not duplicate type definitions across files. Import from the canonical source.
+
+---
+
+## 4. Component Structure Order
+
+Inside every component file, maintain this order:
+1. Imports
+2. Props interface / local types
+3. Local constants and helper functions
+4. Component function declaration
+5. `useState` / hooks at the top of the function body
+6. Derived/computed values
+7. Event handlers
+8. JSX return
+
+---
+
+## 5. State Management
+
+- **No external state library** (no Zustand, Redux, Recoil, Jotai). Do not introduce one.
+- Use **`useState`** for local component state. Group related state logically.
+- Use **React Context** only for cross-cutting concerns (e.g., locale/i18n via `LocaleContext`). Do not create a Context for single-component state.
+- For form state in wizards or multi-step flows, use multiple `useState` hooks with clear naming (matching the current `AddTenantWizard` pattern).
+
+---
+
+## 6. Styling — Tailwind CSS + shadcn/ui
+
+- **Tailwind utility classes** are the only styling mechanism. Do not use CSS modules, styled-components, or inline `style` objects.
+- Use the **`cn()` utility** (from `@/components/ui/utils`) for conditional/merged classes:
+  ```tsx
+  import { cn } from "@/components/ui/utils";
+
+  <div className={cn("rounded-lg p-4", isActive && "bg-primary text-primary-foreground")} />
+  ```
+- `cn()` wraps `clsx` + `tailwind-merge`. Always use it when combining dynamic classes.
+- Use **CSS custom properties** defined in `src/styles/globals.css` for design tokens (colors, radii, etc.). Reference them via Tailwind's `var()` integration, not raw hex values.
+
+---
+
+## 7. UI Primitives — shadcn/ui + Radix
+
+- All base UI components live in `src/components/ui/`. These wrap **Radix UI primitives** with Tailwind styling and **class-variance-authority (CVA)** for variants.
+- Never modify Radix behavior. Only style via CVA `variants` and `cn()` overrides.
+- When adding a new primitive, follow the existing pattern:
+  ```tsx
+  import * as DialogPrimitive from "@radix-ui/react-dialog";
+  import { cn } from "@/components/ui/utils";
+
+  const DialogContent = React.forwardRef<...>(({ className, ...props }, ref) => (
+    <DialogPrimitive.Content ref={ref} className={cn("...", className)} {...props} />
+  ));
+  ```
+- Use **`forwardRef`** on all UI primitives that wrap Radix elements.
+- Import UI components from `@/components/ui/<component>`, not directly from Radix or other libraries.
+
+---
+
+## 8. Icons
+
+- Use **`lucide-react`** exclusively for icons. Do not import from other icon libraries.
+  ```tsx
+  import { Settings, ChevronDown } from "lucide-react";
+  ```
+
+---
+
+## 9. Notifications / Toasts
+
+- Use **`sonner`** (via the `@/components/ui/sonner` wrapper) for toast notifications.
+- Do not use `window.alert`, `window.confirm`, or other browser dialogs.
+
+---
+
+## 10. API Calls & Server Actions
+
+- **No Axios.** The project uses the native `fetch` API.
+- For **server-side data fetching**, use the `serverFetch` wrapper from `@/lib/api.ts`. It automatically:
+  - Reads the `jwt_token` cookie
+  - Attaches the `Authorization: Bearer` header
+  - Redirects to `/login` on 401 responses
+- For **mutations** (login, logout, form submissions), use **Next.js Server Actions** (`"use server"` modules in `src/actions/`):
+  ```tsx
+  // src/actions/auth.ts
+  "use server";
+  export async function loginAction(prevState: any, formData: FormData) { ... }
+  ```
+- In client components, consume server actions with `useFormState` and `useFormStatus` from `react-dom`:
+  ```tsx
+  const [state, formAction] = useFormState(loginAction, initialState);
+  ```
+- Never call APIs directly from client components. Always go through `serverFetch` (SSR) or Server Actions (mutations).
+
+---
+
+## 11. Forms
+
+- For **auth/simple forms**: use the native `<form action={...}>` pattern with Server Actions + `useFormState`/`useFormStatus`.
+- For **complex multi-step forms** (wizards): use controlled `useState` with manual validation (matching `AddTenantWizard` pattern).
+- A `react-hook-form` integration layer exists in `@/components/ui/form.tsx`. Use it when building forms that benefit from field-level validation and error display via the `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormMessage>` composition.
+- Do not mix form strategies within a single form.
+
+---
+
+## 12. Charts
+
+- Use **`recharts`** for all data visualization.
+- Wrap recharts components in custom chart components under `src/components/charts/`.
+- Use barrel exports via `src/components/charts/index.ts`.
+- Follow the existing pattern: each chart type gets its own file (`AreaChart.tsx`, `LineChart.tsx`, `DonutChart.tsx`, `ColumnChart.tsx`).
+- Shared formatting/tooltip logic lives in `src/components/charts/utils.ts` and `ChartTooltip.tsx`.
+
+---
+
+## 13. Routing & Layouts
+
+- Keep route files thin. Pages should fetch data (if server component) and render a view component from `src/components/`.
+- **Dashboard layouts**: fetch the user via `serverFetch` in the layout, pass to the shell component.
+- **Auth guard**: handled by `frontend/middleware.ts` which checks `jwt_token` cookie. Do not duplicate auth checks in individual pages unless RBAC-specific.
+- RBAC page-level guards follow the pattern in `(dashboard)/overview/page.tsx` — check `user.role` and render `<RBACOverlay>` for unauthorized roles.
+
+---
+
+## 14. Drag & Drop
+
+- Use **`react-dnd`** with the HTML5 backend for drag-and-drop interactions (e.g., ticket workboard).
+- Do not introduce alternative DnD libraries.
+
+---
+
+## 15. Theming
+
+- Use **`next-themes`** for dark/light mode toggling. It integrates with the shadcn/ui `sonner` wrapper.
+- Theme tokens are CSS variables in `src/styles/globals.css`.
+
+---
+
+## 16. File Organization
+
+```
+frontend/src/
+├── actions/          # Server Actions (mutations)
+├── app/              # Next.js App Router pages & layouts
+│   ├── (auth)/       # Auth route group (login, register)
+│   └── (dashboard)/  # Dashboard route group
+├── components/       # Feature components (views, shells, forms)
+│   ├── charts/       # Recharts wrapper components
+│   └── ui/           # shadcn/ui primitives (do not put feature code here)
+├── contexts/         # React Context providers
+├── lib/              # Utilities, API helpers, data, i18n
+├── styles/           # Global CSS with design tokens
+└── types/            # TypeScript type definitions
+```
+
+- **Do not** put business/feature logic in `components/ui/`.
+- **Do not** create new top-level directories without discussion.
+
+---
+
+## 17. Import Aliases
+
+- Use the `@/` path alias for all imports from `src/`:
+  ```tsx
+  import { Button } from "@/components/ui/button";
+  import { serverFetch } from "@/lib/api";
+  ```
+- Never use relative paths that go more than one level up (`../../`).

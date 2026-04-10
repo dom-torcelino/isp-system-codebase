@@ -1,0 +1,19 @@
+---
+description: MongoDB and Mongoose performance and styling rules
+globs: backend/src/**/models/**/*.ts, backend/src/**/services/**/*.ts, backend/src/**/controllers/**/*.ts
+---
+# Database Architecture Rules
+
+You are modifying a database-interacting file. Strictly adhere to these Mongoose standards:
+
+### 1. Performance
+* **Read-Only Queries:** ALWAYS append `.lean()` to `find()` or `findOne()` queries if the result is only being sent to the client and not updated. 
+* **Select Specifics:** Do not return entire documents if only a few fields are needed. Use `.select('field1 field2')`.
+
+### 2. Schema Design
+* **Timestamps:** Always enable `{ timestamps: true }` on new schemas.
+* **Soft Deletes:** Prefer adding an `isDeleted: boolean` flag over destructive `.deleteOne()` calls unless explicitly told otherwise.
+* **Refs:** When using `ref` for population, ensure the type is `mongoose.Types.ObjectId`.
+
+### 3. Error Handling
+* Never return raw MongoDB error objects (like E11000 duplicate key errors) to the frontend. Catch them in the service layer and throw a standardized HTTP error.

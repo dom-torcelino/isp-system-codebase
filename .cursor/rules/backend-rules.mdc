@@ -1,0 +1,277 @@
+---
+description: Backend coding standards for the ISP System API — Express 5, Mongoose, JWT auth, Joi validation, and RBAC authorization.
+globs: backend/**/*
+---
+
+# Backend Architecture Rules
+
+> These rules are extracted from the existing codebase. Follow them strictly to maintain architectural consistency.
+
+---
+
+## 1. Runtime & Module System
+
+- **Node.js ≥ 20** with **ES Modules** (`"type": "module"` in package.json).
+- Use `import`/`export` syntax exclusively. Never use `require()` or `module.exports`.
+- File extensions are `.js`. No TypeScript in the backend.
+
+---
+
+## 2. Framework & Startup
+
+- **Express 5** is the HTTP framework.
+- Application bootstrap is split into two files:
+  - `app.js` — Express app configuration, middleware registration, route mounting.
+  - `server.js` — HTTP server creation, DB connection, and listen.
+- **DB-before-listen** pattern: always `await connectDB()` before `server.listen()`.
+- **Fail-fast** on fatal startup errors: `process.exit(1)` if DB connection or server boot fails.
+
+---
+
+## 3. Middleware Registration Order
+
+Maintain this exact order in `app.js`:
+1. `trust proxy` (for rate limiter behind reverse proxy)
+2. `cors()` with configured origins
+3. `express.json()` body parser
+4. Route mounts (`/api/v1/*`)
+5. 404 catch-all handler
+6. Global error handler (always last)
+
+```js
+app.set("trust proxy", 1);
+app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+app.use(express.json({ limit: "16kb" }));
+
+// Routes
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/users", userRoutes);
+
+// 404
+app.use((req, res, next) => {
+  res.status(404);
+  next(new Error(`Not Found - ${req.originalUrl}`));
+});
+
+// Error handler
+app.use(errorHandler);
+```
+
+---
+
+## 4. Route Organization
+
+- One router file per domain: `auth.routes.js`, `user.routes.js`, `tenant.routes.js`.
+- All routes are prefixed with `/api/v1/`.
+- Compose middleware per-route in this order:
+  1. Rate limiter (where applicable, e.g., login)
+  2. `requireAuth` (authentication)
+  3. `requireAccess(module, level)` (RBAC authorization)
+  4. Validation middleware (Joi schema)
+  5. Controller handler
+
+```js
+router.post("/login", loginLimiter, login);
+router.get("/me", requireAuth, getCurrentUser);
+router.get("/tenants", requireAuth, requireAccess("tenants", "readonly"), listTenants);
+```
+
+- For routes that all require auth, apply `router.use(requireAuth)` at the router level.
+
+---
+
+## 5. Controller Pattern
+
+- Controllers are **thin** — validate input, delegate to models/services, format response.
+- Always wrap async controllers with **`catchAsync`** from `@/utils/catchAsync.js`:
+  ```js
+  import catchAsync from "../utils/catchAsync.js";
+
+  export const login = catchAsync(async (req, res) => {
+    const { email, password } = req.body;
+    // ... logic
+    res.status(200).json({ token, user });
+  });
+  ```
+- **Do not** use manual `try/catch` in controllers. Let `catchAsync` forward errors to the global error handler.
+- Throw errors with a status code for expected failures:
+  ```js
+  const error = new Error("Invalid credentials");
+  error.statusCode = 401;
+  throw error;
+  ```
+
+---
+
+## 6. Error Handling
+
+- The global **`errorHandler`** middleware in `middlewares/errorHandler.middleware.js` is the single place for error response formatting.
+- It handles:
+  - `CastError` (invalid Mongoose ObjectId)
+  - `ValidationError` (Mongoose validation)
+  - Duplicate key errors (code 11000)
+  - Generic errors with `statusCode` property
+- In **development**: include error `stack` in response.
+- In **production**: never expose stack traces or internal details.
+- Never catch errors silently. Always propagate to next() or throw.
+
+---
+
+## 7. Authentication — JWT + Bearer Token
+
+- Auth flow:
+  1. Login controller validates credentials against the User model.
+  2. On success, sign a JWT with `jsonwebtoken`:
+     ```js
+     jwt.sign({ sub: user._id }, process.env.JWT_SECRET, { expiresIn: "24h" });
+     ```
+  3. Return `{ token, user }` in the response.
+- The `requireAuth` middleware:
+  1. Extracts `Bearer <token>` from the `Authorization` header.
+  2. Verifies the token with `jwt.verify`.
+  3. Performs a **live DB lookup** to confirm the user still exists and get fresh role data.
+  4. Attaches the user document to `req.user`.
+- Never store JWTs in the database. They are stateless.
+
+---
+
+## 8. Authorization — RBAC Matrix
+
+- The **RBAC matrix** in `config/rbac.js` is the single source of truth for permissions.
+- Structure: `role → module → access level` (`"full"`, `"readonly"`, `"none"`).
+- The `requireAccess(module, requiredAccess)` middleware factory checks:
+  - User role exists in the matrix.
+  - Module access is not `"none"`.
+  - If `requiredAccess` is `"full"`, `"readonly"` is insufficient.
+- When adding new modules or roles, update only `config/rbac.js`. Do not scatter permission checks across controllers.
+
+---
+
+## 9. Mongoose Models
+
+- Define schemas in `models/<entity>.model.js`.
+- Schema conventions:
+  - Use `required`, `unique`, `enum`, and `default` validators directly in the schema.
+  - Always enable `{ timestamps: true }` for automatic `createdAt`/`updatedAt`.
+  - Apply `toJSON` transform to strip sensitive fields:
+    ```js
+    userSchema.set("toJSON", {
+      transform: (doc, ret) => {
+        delete ret.password;
+        delete ret.__v;
+        return ret;
+      },
+    });
+    ```
+- Password handling:
+  - Hash in a `pre("save")` hook using `bcryptjs`. Only hash when `isModified("password")`.
+  - Expose a `comparePassword(candidate)` instance method for login verification.
+- Model file exports the compiled model: `export default mongoose.model("User", userSchema);`.
+
+---
+
+## 10. Validation — Joi
+
+- Use **Joi** for all input validation.
+- Environment variables are validated at startup via a Joi schema in `config/env.js` with `abortEarly: false`.
+- Request validation uses the `validate` middleware in `middlewares/validate.mdl.js`:
+  - Accepts a schema object with optional `params`, `query`, `body` keys.
+  - Validates with `abortEarly: false` and `stripUnknown: true`.
+  - Overwrites `req.params`, `req.query`, `req.body` with sanitized values.
+- Define Joi schemas in a dedicated file per domain (e.g., `validations/auth.validation.js`) when wiring validation to routes.
+
+---
+
+## 11. Logging — Winston
+
+- Winston logger is configured in `config/logger.js` with:
+  - Environment-based log level.
+  - Console transport (colorized) + file transport (`logs/` directory).
+  - Error stack preservation formatter.
+- Use the logger for all structured logging. Do not use `console.log` or `console.error` in production code.
+  ```js
+  import logger from "../config/logger.js";
+  logger.info("Server started", { port: 3000 });
+  logger.error("DB connection failed", { error: err.message });
+  ```
+
+---
+
+## 12. Configuration — Environment
+
+- All environment variables are accessed through the validated config object from `config/env.js`.
+- Never access `process.env` directly outside of `config/env.js` and scripts.
+- Required env vars: `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`, `NODE_ENV`, `CORS_ORIGIN`, `SENTRY_DSN`.
+- Scripts (e.g., seeders) may use `dotenv/config` directly for standalone execution.
+
+---
+
+## 13. Rate Limiting
+
+- Use **`express-rate-limit`** for endpoint-specific rate limiting.
+- Rate limiters are defined in `middlewares/rateLimiter.middleware.js` and applied per-route, not globally.
+- Login limiter: 5 requests per 15-minute window per IP.
+
+---
+
+## 14. Security Dependencies
+
+- **Helmet** must be wired into the middleware stack for HTTP header security.
+- **CORS** is configured with explicit origin allowlist from env config.
+- **Sentry** (`@sentry/node`) should be initialized early in `app.js` for error tracking.
+
+---
+
+## 15. Scripts
+
+- Seed/maintenance scripts live in `src/scripts/`.
+- Scripts must:
+  - Import `dotenv/config` for env loading.
+  - Connect to the database directly via `mongoose.connect`.
+  - Be **idempotent** (check if data exists before creating).
+  - Exit with explicit codes: `process.exit(0)` on success, `process.exit(1)` on failure.
+
+---
+
+## 16. Service Layer (Future Pattern)
+
+- As the codebase grows, business logic should move from controllers into `src/services/<entity>.service.js`.
+- Services contain domain logic and model interactions.
+- Controllers call services; services call models. Controllers never import models directly once a service exists.
+
+---
+
+## 17. File Organization
+
+```
+backend/src/
+├── config/           # App configuration (db, env, logger, rbac)
+├── controllers/      # Route handlers (thin, delegate to services/models)
+├── middlewares/       # Express middleware (auth, authz, validation, errors, rate-limit)
+├── models/           # Mongoose schemas and models
+├── routes/           # Express Router definitions (one per domain)
+├── scripts/          # Standalone scripts (seeds, migrations)
+├── services/         # Business logic layer
+├── utils/            # Small utilities (catchAsync, etc.)
+├── app.js            # Express app setup
+└── server.js         # HTTP server bootstrap
+```
+
+- Do not create new top-level directories without discussion.
+- Keep the naming convention: `<name>.<layer>.js` (e.g., `auth.controller.js`, `user.model.js`, `auth.routes.js`).
+
+---
+
+## 18. Response Format Conventions
+
+- Success responses:
+  ```json
+  { "token": "...", "user": { ... } }     // login
+  { "users": [...] }                       // list
+  { "user": { ... } }                      // single resource
+  ```
+- Error responses:
+  ```json
+  { "message": "Error description" }
+  ```
+- Always set appropriate HTTP status codes (200, 201, 400, 401, 403, 404, 500).
