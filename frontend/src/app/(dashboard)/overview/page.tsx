@@ -1,11 +1,11 @@
-import { serverFetch } from "@/lib/api";
-import { OverviewDashboard } from "@/components/OverviewDashboard";
-import { RBACOverlay } from "@/components/RBACOverlay";
-import { hasAccess, getAccessDeniedReason } from "@/lib/rbac";
+import { getUser } from "@/shared/lib/api";
+import { OverviewDashboard } from "@/features/overview/components/OverviewDashboard";
+import { RBACOverlay } from "@/shared/components/RBACOverlay";
+import { hasAccess, getAccessDeniedReason } from "@/shared/lib/rbac";
 
 export default async function OverviewPage() {
   // Why: Re-fetch user context. In Next.js App Router, fetch requests are automatically deduplicated, so this doesn't hit the Express backend twice.
-  const user = await serverFetch("/api/v1/users/me");
+  const user = await getUser();
 
   // Why: Server-side RBAC enforcement. Do not even render the HTML if they lack access.
   if (!hasAccess(user.role, "overview")) {

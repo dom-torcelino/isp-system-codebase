@@ -1,5 +1,5 @@
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { LoginForm } from "@/components/LoginForm";
+import { LanguageSwitcher } from "@/shared/components/LanguageSwitcher";
+import { LoginForm } from "@/features/auth/components/LoginForm";
 
 // Why: This page is rendered on the server, shipping zero JavaScript to the client except for the isolated LoginForm component.
 export default function LoginPage() {

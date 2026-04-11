@@ -1,4 +1,4 @@
-import { LocaleProvider } from '@/contexts/LocaleContext';
+import { LocaleProvider } from '@/shared/contexts/LocaleContext';
 import './globals.css';
 import type { Metadata } from 'next';
 
