@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { Lock } from 'lucide-react';
+import { Lock, Eye, EyeOff } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { Button } from '@/shared/ui/button';
 import { Label } from '@/shared/ui/label';
+import { Checkbox } from '@/shared/ui/checkbox';
 import { Alert, AlertDescription } from '@/shared/ui/alert';
 import { useLocale } from '@/shared/contexts/LocaleContext';
 import { loginAction, type LoginState } from '@/actions/auth';
@@ -24,6 +26,7 @@ function SubmitButton() {
 export function LoginForm() {
     const initialState: LoginState = { error: undefined };
     const { t } = useLocale();
+    const [showPassword, setShowPassword] = useState(false);
 
     // Why: Explicitly set the initial state to undefined instead of null to satisfy TypeScript.
     // Why: Removed useState. Next.js natively handles form data extraction, saving memory and unnecessary re-renders.
@@ -63,14 +66,31 @@ export function LoginForm() {
 
                     <div className="space-y-2">
                         <Label htmlFor="password">{t.login.password}</Label>
-                        <Input
-                            id="password"
-                            name="password"
-                            type="password"
-                            placeholder="••••••••"
-                            autoComplete="current-password"
-                            required
-                        />
+                        <div className="relative">
+                            <Input
+                                id="password"
+                                name="password"
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="••••••••"
+                                autoComplete="current-password"
+                                required
+                            />
+                            <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowPassword(!showPassword)}
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="remember" name="remember" />
+                        <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                            Remember me
+                        </Label>
                     </div>
 
                     <SubmitButton />

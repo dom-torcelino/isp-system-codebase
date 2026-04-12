@@ -1,9 +1,14 @@
 import { getUser } from "@/shared/lib/api";
+import { TenantDetailsView } from "@/features/tenants/components/TenantDetailsView";
 import { RBACOverlay } from "@/shared/components/RBACOverlay";
 import { hasAccess, getAccessDeniedReason } from "@/shared/lib/rbac";
-import { TenantsWrapper } from "./TenantsWrapper";
+import { TenantDetailsWrapper } from "./TenantDetailsWrapper";
 
-export default async function TenantsPage() {
+export default async function TenantDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const user = await getUser();
 
   if (!hasAccess(user.role, "tenants")) {
@@ -16,5 +21,5 @@ export default async function TenantsPage() {
     );
   }
 
-  return <TenantsWrapper userRole={user.role} />;
+  return <TenantDetailsWrapper tenantId={params.id} />;
 }

@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback } from '@/shared/ui/avatar';
 import { Badge } from '@/shared/ui/badge';
 import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
 import { useLocale } from '@/shared/contexts/LocaleContext';
-import { logoutAction } from '@/actions/auth'; // Adjust path if necessary
+import { logoutAction } from '@/actions/auth';
+import { LogoutConfirmDialog } from '@/features/auth/components/LogoutConfirmDialog';
 import {
   Select,
   SelectContent,
@@ -43,6 +44,7 @@ export function TopBar({
   const [dateRange, setDateRange] = useState('30d');
   const [activeTenant, setActiveTenant] = useState(currentTenant);
   const [activeRole, setActiveRole] = useState(currentRole);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   // Why: Handle the theme DOM manipulation directly within this client component.
   useEffect(() => {
@@ -154,8 +156,7 @@ export function TopBar({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
-              // Why: Directly invoke the Server Action to clear the cookie and redirect to /login.
-              onClick={() => logoutAction()}
+              onClick={() => setShowLogoutDialog(true)}
             >
               <LogOut className="mr-2 h-4 w-4" />
               <span>Logout</span>
@@ -163,6 +164,12 @@ export function TopBar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <LogoutConfirmDialog
+        open={showLogoutDialog}
+        onOpenChange={setShowLogoutDialog}
+        onConfirm={() => logoutAction()}
+      />
     </div>
   );
 }

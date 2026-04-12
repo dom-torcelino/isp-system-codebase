@@ -86,15 +86,12 @@ export function LeftNav({
   }, [collapsed, setCollapsed]);
 
   return (
-    // Why: Fixed width at SIDEBAR_EXPANDED. The collapse animation uses GPU-accelerated translateX
-    // to slide the overflow off-screen instead of animating width (which triggers expensive layout reflow).
     <div
-      className="h-full bg-sidebar border-r border-sidebar-border flex flex-col will-change-transform"
+      className="h-full bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden"
       style={{
-        width: SIDEBAR_EXPANDED,
-        transform: collapsed ? `translateX(-${SIDEBAR_EXPANDED - SIDEBAR_COLLAPSED}px)` : 'translateX(0)',
-        marginRight: collapsed ? -(SIDEBAR_EXPANDED - SIDEBAR_COLLAPSED) : 0,
-        transition: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), margin-right 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+        width: collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED,
+        minWidth: collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED,
+        transition: 'width 150ms cubic-bezier(0.4, 0, 0.2, 1), min-width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       <div className="border-t border-sidebar-border">

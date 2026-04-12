@@ -3,7 +3,6 @@ import { LeftNav } from "@/widgets/LeftNav";
 import { TopBar } from "@/widgets/TopBar";
 import { PageContent } from "@/widgets/PageContent";
 import { Toaster } from "@/shared/ui/sonner";
-import { LogoutConfirmDialog } from "@/features/auth/components/LogoutConfirmDialog";
 import { LocaleProvider } from "@/shared/contexts/LocaleContext";
 import { NavigationProvider } from "@/shared/contexts/NavigationContext";
 
